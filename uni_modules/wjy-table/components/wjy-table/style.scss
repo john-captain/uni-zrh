@@ -1,0 +1,97 @@
+$border-color: #ebeef5; // 边框默认颜色
+$table-font-size: 12px; // 表格整体字体大小  除了header
+$table-header-font-size: 13px; // header字体大小
+$table-zebra-stripe-odd: #e6f7ff; // 斑马纹奇数背景色 
+$table-zebra-stripe-even: #ffffff; // 斑马纹奇数背景色 
+.wjy-table {
+	overflow: scroll;
+	position: relative;
+	.wjy-table-scroll {
+		overflow: visible;
+		.wjy-table-row-header {
+			display: flex;
+			position: sticky;
+			top: 0;
+			font-size: $table-header-font-size;
+			font-weight: 1000;
+			z-index: 9999;
+			.wjy-table-row-header-th {
+				word-break: break-all;
+				display: inline-block;
+				padding: 10px 10px;
+				box-sizing: border-box;
+				border-bottom: 1px solid $border-color;
+				border-left: 1px solid $border-color;
+				border-right: 1px solid $border-color;
+				.wjy-table-row-header-th-data-wrap {
+					
+				}
+				.sort-wrap {
+					position: relative;
+					.up, .down {
+						position: absolute;
+						font-size: 5px;
+					}
+					.up {
+						top: -10px;
+					}
+					.down {
+						top: 0;
+					}
+				}
+			}
+		}
+		.wjy-table-row {
+			display: flex;
+			&:not(:last-child) {
+				border-bottom: 1px solid $border-color;
+			}
+			&:nth-child(odd) {
+				background-color: $table-zebra-stripe-odd;
+			}
+			&:nth-child(even) {
+				background-color: $table-zebra-stripe-even;
+			}
+			.wjy-table-th {
+				width: 100%;
+				display: inline-block;
+				box-sizing: border-box;
+				background: inherit;
+				border-left: 1px solid $border-color;
+				border-right: 1px solid $border-color;
+				border-bottom: 1px solid $border-color;
+				.wjy-table-data {
+					width: 100%;
+					padding: 5px 10px;
+					font-size: $table-font-size;
+					box-sizing: border-box;
+					word-break: break-all;
+				}
+				.wjy-table-header {
+					font-size: $table-header-font-size;
+					font-weight: 1000;
+				}
+			}
+		}
+	}
+	// 暂无数据
+	.wjy-nodata {
+		font-size: $table-font-size;
+		position: sticky;
+		left: 45%;
+		top: 50%;
+		z-index: 100;
+	}
+}
+
+.noweb::-webkit-scrollbar {
+	display: none;
+}
+
+:deep(checkbox) {
+	.uni-checkbox-wrapper {
+		.uni-checkbox-input {
+			border: 2px solid #3b7aad;
+		}
+	}
+}

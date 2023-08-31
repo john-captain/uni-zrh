@@ -1,0 +1,770 @@
+<template>
+	<view class="focus-box">
+		<!-- 搜索栏 -->
+		<view class="focus-seach" @click="navToSearch">
+		  <image class="home-seach" src="/static/images/home-seach.png" />
+		  <input placeholder="债劵" type="text" />
+		  <text class="search-title" @click="navToSearch">搜索</text>
+		</view>
+		
+		<view class="nav acea-row row-around">
+			<view class="item" :class="orderStatus == 9 ? 'on' : ''" @click="statusClick(9)">
+				<view>{{$t(`逆回购`)}}</view>
+			</view>
+			<view class="item" :class="orderStatus == 0 ? 'on' : ''" @click="statusClick(0)">
+				<view>{{$t(`正回购`)}}</view>
+			</view>
+			<view class="item" :class="orderStatus == 1 ? 'on' : ''" @click="statusClick(1)">
+				<view>{{$t(`债劵ofr`)}}</view>
+			</view>
+			<view class="item" :class="orderStatus == 2 ? 'on' : ''" @click="statusClick(2)">
+				<view>{{$t(`bid`)}}</view>
+			</view>
+			<view class="item" :class="orderStatus == 3 ? 'on' : ''" @click="statusClick(3)">
+				<view>{{$t(`ofr`)}}</view>
+			</view>
+		
+		</view>
+		
+		<view>
+			<view class="uni-container">
+				<uni-table ref="table" :loading="loading" border stripe emptyText="暂无更多数据" @selection-change="selectionChange">
+					<uni-tr>
+						<uni-th width="100" align="center">简称</uni-th>
+						<uni-th width="50" align="center">模式</uni-th>
+						<uni-th align="center">报价</uni-th>
+						<uni-th width="104" align="center">量</uni-th>
+					</uni-tr>
+					<uni-tr v-for="(item, index) in tableData" :key="index">
+						<uni-td>{{ item.date }}</uni-td>
+						<uni-td>
+							<view class="name">{{ item.name }}</view>
+						</uni-td>
+						<uni-td align="center">{{ item.address }}</uni-td>
+						<uni-td align="center">
+							<view class="uni-group" align="center">
+								{{ item.count }}
+								<!-- <button class="uni-button" size="mini" type="primary">下架</button>
+								<button class="uni-button" size="mini" type="warn">删除</button> -->
+							</view>
+						</uni-td>
+					</uni-tr>
+				</uni-table>
+				<view class="uni-pagination-box"><uni-pagination show-icon :page-size="pageSize" :current="pageCurrent" :total="total" @change="change" /></view>
+			</view>
+		</view>
+		
+		
+		
+		<!-- #ifdef MP -->
+		<!-- <authorize :isAuto="isAuto" :isShowAuth="isShowAuth" @authColse="authColse"></authorize> -->
+		<!-- #endif -->
+		<!-- <view class="uni-p-b-96"></view> -->
+		<!-- <pageFooter :countNum="cartCount"></pageFooter> -->
+		<tabBar v-if="!is_diy" :pagePath="'/pages/order_addcart/order_addcart'"></tabBar>
+		<pageFooter v-else></pageFooter>
+	</view>
+	
+	
+</template>
+
+<script>
+	// #ifdef APP-PLUS
+	let sysHeight = uni.getSystemInfoSync().statusBarHeight + 'px';
+	// #endif
+	// #ifndef APP-PLUS
+	let sysHeight = 0
+	// #endif
+	import {
+		getCartList,
+		getCartCounts,
+		changeCartNum,
+		cartDel,
+		getResetCart
+	} from '@/api/order.js';
+	import {
+		getProductHot,
+		collectAll,
+		getProductDetail
+	} from '@/api/store.js';
+	import {
+		toLogin
+	} from '@/libs/login.js';
+	import tabBar from "@/pages/index/visualization/components/tabBar.vue"
+	import {
+		mapGetters
+	} from "vuex";
+	import recommend from '@/components/recommend';
+	import productWindow from '@/components/productWindow';
+	// #ifdef MP
+	import authorize from '@/components/Authorize';
+	// #endif
+	import pageFooter from '@/components/pageFooter/index.vue'
+	import colors from "@/mixins/color";
+	import {
+		HTTP_REQUEST_URL
+	} from '@/config/app';
+	import tableData from './tableData.js'
+	export default {
+		components: {
+			pageFooter,
+			recommend,
+			productWindow,
+			tabBar,
+			// #ifdef MP
+			authorize
+			// #endif
+		},
+		mixins: [colors],
+		data() {
+			return {
+				imgHost: HTTP_REQUEST_URL,
+				is_diy: uni.getStorageSync('is_diy'),
+				canShow: false,
+				cartCount: 0,
+				goodsHidden: true,
+				footerswitch: true,
+				hostProduct: [],
+				cartList: {
+					valid: [],
+					invalid: []
+				},
+				isAllSelect: false, //全选
+				selectValue: [], //选中的数据
+				selectCountPrice: 0.00,
+				isAuto: false, //没有授权的不会自动授权
+				isShowAuth: false, //是否隐藏授权
+				hotScroll: false,
+				hotPage: 1,
+				hotLimit: 10,
+				loading: false,
+				loadend: false,
+				loadTitle: this.$t(`我也是有底线的`), //提示语
+				page: 1,
+				limit: 20,
+				loadingInvalid: false,
+				loadendInvalid: false,
+				loadTitleInvalid: this.$t(`加载更多`), //提示语
+				pageInvalid: 1,
+				limitInvalid: 20,
+				attr: {
+					cartAttr: false,
+					productAttr: [],
+					productSelect: {}
+				},
+				productValue: [], //系统属性
+				storeInfo: {},
+				attrValue: '', //已选属性
+				attrTxt: this.$t(`请选择`), //属性页面提示
+				cartId: 0,
+				product_id: 0,
+				sysHeight: sysHeight,
+				newData: {},
+				activeRouter: '',
+				is_diy_set: false,
+				adding: false,
+				searchVal: '',
+				tableData: [],
+				// 每页数据量
+				pageSize: 50,
+				// 当前页
+				pageCurrent: 1,
+				// 数据总量
+				total: 0,
+				loading: false
+			};
+		},
+		computed: mapGetters(['isLogin']),
+		onLoad(options) {
+			uni.hideTabBar()
+			let that = this;
+			let routes = getCurrentPages(); // 获取当前打开过的页面路由数组
+			let curRoute = routes[routes.length - 1].route //获取当前页面路由
+			this.activeRouter = '/' + curRoute
+			this.selectedIndexs = []
+			this.getData(1)
+		},
+		onShow() {
+			if (!this.isLogin) toLogin();
+			this.canShow = false
+		},
+		methods: {
+			// 授权关闭
+			authColse: function(e) {
+				this.isShowAuth = e;
+			},
+			
+			
+			
+			
+			
+			goRouter(item) {
+				var pages = getCurrentPages();
+				var page = (pages[pages.length - 1]).$page.fullPath;
+				if (item.link == page) return
+				uni.switchTab({
+					url: item.link,
+					fail(err) {
+						uni.redirectTo({
+							url: item.link
+						})
+					}
+				})
+			},
+			manage: function() {
+				let that = this;
+				that.footerswitch = !that.footerswitch;
+				let arr1 = [];
+				let arr2 = [];
+				let newValid = that.cartList.valid.map(item => {
+					if (that.footerswitch) {
+						if (item.attrStatus) {
+							if (item.checked) {
+								arr1.push(item.id);
+							}
+						} else {
+							item.checked = false;
+							arr2.push(item);
+						}
+					} else {
+						if (item.checked) {
+							arr1.push(item.id);
+						}
+					}
+					return item;
+				});
+				that.cartList.valid = newValid;
+				if (that.footerswitch) {
+					that.isAllSelect = newValid.length === arr1.length + arr2.length;
+				} else {
+					that.isAllSelect = newValid.length === arr1.length;
+				}
+				that.selectValue = arr1;
+				that.switchSelect();
+			},
+			unsetCart: function() {
+				let that = this,
+					ids = [];
+				for (let i = 0, len = that.cartList.invalid.length; i < len; i++) {
+					ids.push(that.cartList.invalid[i].id);
+				}
+				cartDel(ids).then(res => {
+					that.$util.Tips({
+						title: that.$t(`清除成功`)
+					});
+					that.$set(that.cartList, 'invalid', []);
+					that.getCartNum();
+				}).catch(res => {
+
+				});
+			},
+			// 滚动监听
+			onPageScroll(e) {
+				// 传入scrollTop值并触发所有easy-loadimage组件下的滚动监听事件
+				uni.$emit('scroll');
+			},
+			// 多选处理
+			selectedItems() {
+				return this.selectedIndexs.map(i => this.tableData[i])
+			},
+			// 多选
+			selectionChange(e) {
+				console.log(e.detail.index)
+				this.selectedIndexs = e.detail.index
+			},
+			//批量删除
+			delTable() {
+				console.log(this.selectedItems())
+			},
+			// 分页触发
+			change(e) {
+				this.$refs.table.clearSelection()
+				this.selectedIndexs.length = 0
+				this.getData(e.current)
+			},
+			// 搜索
+			search() {
+				this.getData(1, this.searchVal)
+			},
+			// 获取数据
+			getData(pageCurrent, value = '') {
+				this.loading = true
+				this.pageCurrent = pageCurrent
+				this.request({
+					pageSize: this.pageSize,
+					pageCurrent: pageCurrent,
+					value: value,
+					success: res => {
+						// console.log('data', res);
+						this.tableData = res.data
+						this.total = res.total
+						this.loading = false
+					}
+				})
+			},
+			// 伪request请求
+			request(options) {
+				const { pageSize, pageCurrent, success, value } = options
+				let total = tableData.length
+				let data = tableData.filter((item, index) => {
+					const idx = index - (pageCurrent - 1) * pageSize
+					return idx < pageSize && idx >= 0
+				})
+				if (value) {
+					data = []
+					tableData.forEach(item => {
+						if (item.name.indexOf(value) !== -1) {
+							data.push(item)
+						}
+					})
+					total = data.length
+				}
+			
+				setTimeout(() => {
+					typeof success === 'function' &&
+						success({
+							data: data,
+							total: total
+						})
+				}, 500)
+			},
+		},
+		onReachBottom() {
+			let that = this;
+			if (that.loadend) {
+				that.getInvalidList();
+			}
+			if (that.cartList.valid.length == 0 && that.cartList.invalid.length == 0) {
+				that.getHostProduct();
+			}
+		}
+		
+	}
+</script>
+
+<style scoped lang="scss">
+  .uni-group {
+  	display: flex;
+  	align-items: center;
+  }
+  .focus-box {
+    padding: 20rpx 0 0 0;
+    background: #f7f8f9;
+    height: calc(100vh - 70rpx);
+    box-sizing: border-box;
+	// 搜索框样式
+	.focus-seach {
+	  position: relative;
+	  // margin: 20rpx 24rpx 0;
+	  left: 24rpx;
+	  width: 702rpx;
+	  height: 88rpx;
+	  background: #f7f8f9;
+	  border-radius: 44rpx;
+	  border: 2rpx solid #ce9f6c;
+	
+	  .home-seach {
+	    position: absolute;
+	    top: 30rpx;
+	    left: 32rpx;
+	    width: 40rpx;
+	    height: 40rpx;
+	  }
+	
+	  input {
+	    position: absolute;
+	    top: 26rpx;
+	    left: 92rpx;
+	    width: 490rpx;
+	  }
+	
+	  .search-title {
+	    position: absolute;
+	    top: 0;
+	    right: 0;
+	    font-size: 40rpx;
+	    font-family: PingFangSC-Semibold, PingFang SC;
+	    font-weight: 600;
+	    color: #8d5e38;
+	    width: 160rpx;
+	    height: 88rpx;
+	    background: linear-gradient(90deg, #eace9d 0%, #e1b470 100%);
+	    border-radius: 44rpx;
+	    text-align: center;
+	    line-height: 88rpx;
+	  }
+	}
+	.nav {
+		background-color: #fff;
+		width: 690rpx;
+		height: 180rpx;
+		border-radius: 6rpx;
+		margin: -73rpx auto 0 auto;
+	}
+	
+    .nav .item {
+		margin-top: 98rpx;
+		text-align: center;
+		font-size: 26rpx;
+		color: #282828;
+		width: 3rem;
+		padding: 27rpx 0;
+		border-bottom: 5rpx solid transparent;
+	}
+	
+	.nav .item.on {
+		/* #ifdef H5 || MP */
+		font-weight: bold;
+		/* #endif */
+		/* #ifdef APP-PLUS */
+		color: green;
+		/* #endif */
+		border-color: var(--view-theme);
+	}
+	
+	.nav .item .num {
+		margin-top: 18rpx;
+	}
+	
+	
+   }
+	.shoppingCart {
+		/* #ifdef H5 */
+		// padding-bottom: 0;
+		// padding-bottom: constant(safe-area-inset-bottom);  
+		// padding-bottom: env(safe-area-inset-bottom);
+		/* #endif */
+	}
+
+	.shoppingCart .labelNav {
+		height: 76rpx;
+		padding: 0 30rpx;
+		font-size: 22rpx;
+		color: #8c8c8c;
+		position: fixed;
+		left: 0;
+		width: 100%;
+		box-sizing: border-box;
+		background-color: #f5f5f5;
+		z-index: 5;
+		top: 0;
+	}
+
+	.shoppingCart .labelNav .item .iconfont {
+		font-size: 25rpx;
+		margin-right: 10rpx;
+	}
+
+	.shoppingCart .nav {
+		width: 100%;
+		height: 80rpx;
+		background-color: #fff;
+		padding: 0 30rpx;
+		box-sizing: border-box;
+		font-size: 28rpx;
+		color: #282828;
+		position: fixed;
+		left: 0;
+		z-index: 5;
+		top: 76rpx;
+	}
+
+	.shoppingCart .nav .num {
+		margin-left: 12rpx;
+	}
+
+	.shoppingCart .nav .administrate {
+		font-size: 26rpx;
+		color: #282828;
+		width: 110rpx;
+		height: 46rpx;
+		border-radius: 6rpx;
+		border: 1px solid #a4a4a4;
+	}
+
+	.shoppingCart .noCart {
+		margin-top: 171rpx;
+		background-color: #fff;
+		padding-top: 0.1rpx;
+	}
+
+	.shoppingCart .noCart .pictrue {
+		width: 414rpx;
+		height: 336rpx;
+		margin: 78rpx auto 56rpx auto;
+	}
+
+	.shoppingCart .noCart .pictrue image {
+		width: 100%;
+		height: 100%;
+	}
+
+	.shoppingCart .list {
+		margin-top: 171rpx;
+	}
+
+	.shoppingCart .list .item {
+		padding: 25rpx 30rpx;
+		background-color: #fff;
+		margin-bottom: 15rpx;
+	}
+
+	.shoppingCart .list .item .picTxt {
+		width: 627rpx;
+		position: relative;
+	}
+
+	.shoppingCart .list .item .picTxt .pictrue {
+		width: 160rpx;
+		height: 160rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .pictrue image {
+		width: 100%;
+		height: 100%;
+		border-radius: 6rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .text {
+		width: 444rpx;
+		font-size: 28rpx;
+		color: #282828;
+	}
+
+	.shoppingCart .list .item .picTxt .text .reColor {
+		color: #999;
+	}
+
+	.shoppingCart .list .item .picTxt .text .reElection {
+		margin-top: 20rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .text .reElection .title {
+		font-size: 24rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .text .reElection .reBnt {
+		// width: 120rpx;
+		padding: 0 10rpx;
+		// height: 46rpx;
+		margin-top: 6rpx;
+		border-radius: 23rpx;
+		font-size: 26rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .text .infor {
+		font-size: 24rpx;
+		color: #868686;
+		margin-top: 16rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .text .money {
+		font-size: 32rpx;
+		color: var(--view-theme);
+		margin-top: 28rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum {
+		height: 47rpx;
+		position: absolute;
+		bottom: 0rpx;
+		right: 0;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum view {
+		border: 1rpx solid #a4a4a4;
+		width: 66rpx;
+		text-align: center;
+		height: 100%;
+		line-height: 40rpx;
+		font-size: 28rpx;
+		color: #a4a4a4;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum .reduce {
+		border-right: 0;
+		border-radius: 3rpx 0 0 3rpx;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum .reduce.on {
+		border-color: #e3e3e3;
+		color: #dedede;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum .plus {
+		border-left: 0;
+		border-radius: 0 3rpx 3rpx 0;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum .plus.on {
+		border-color: #e3e3e3;
+		color: #dedede;
+	}
+
+	.shoppingCart .list .item .picTxt .carnum .num {
+		color: #282828;
+	}
+
+	.shoppingCart .invalidGoods {
+		background-color: #fff;
+	}
+
+	.shoppingCart .invalidGoods .goodsNav {
+		width: 100%;
+		height: 66rpx;
+		padding: 0 30rpx;
+		box-sizing: border-box;
+		font-size: 28rpx;
+		color: #282828;
+	}
+
+	.shoppingCart .invalidGoods .goodsNav .iconfont {
+		color: #424242;
+		font-size: 28rpx;
+		margin-right: 17rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsNav .del {
+		font-size: 26rpx;
+		color: #999;
+	}
+
+	.shoppingCart .invalidGoods .goodsNav .del .icon-shanchu1 {
+		color: #999;
+		font-size: 33rpx;
+		vertical-align: -2rpx;
+		margin-right: 8rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item {
+		padding: 20rpx 30rpx;
+		border-top: 1rpx solid #f5f5f5;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .invalid {
+		font-size: 22rpx;
+		color: #fff;
+		width: 70rpx;
+		height: 36rpx;
+		background-color: #aaa;
+		border-radius: 3rpx;
+		text-align: center;
+		line-height: 36rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .pictrue {
+		width: 140rpx;
+		height: 140rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .pictrue image {
+		width: 100%;
+		height: 100%;
+		border-radius: 6rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .text {
+		width: 433rpx;
+		font-size: 28rpx;
+		color: #999;
+		height: 140rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .text .name {
+		width: 100%;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .text .infor {
+		font-size: 24rpx;
+	}
+
+	.shoppingCart .invalidGoods .goodsList .item .text .end {
+		font-size: 26rpx;
+		color: #bbb;
+	}
+
+	.shoppingCart .footer {
+		z-index: 999;
+		width: 100%;
+		height: 96rpx;
+		background-color: rgba(255, 255, 255, 0.85);
+		backdrop-filter: blur(10px);
+		position: fixed;
+		padding: 0 30rpx;
+		box-sizing: border-box;
+		border-top: 1rpx solid #eee;
+		bottom: 98rpx;
+		bottom: calc(98rpx + constant(safe-area-inset-bottom)); ///兼容 IOS<11.2/
+		bottom: calc(98rpx + env(safe-area-inset-bottom)); ///兼容 IOS>11.2/
+	}
+
+	.shoppingCart .footer.on {
+		// #ifndef H5
+		bottom: 0rpx;
+		// #endif
+	}
+
+	.shoppingCart .footer .checkAll {
+		font-size: 28rpx;
+		color: #282828;
+		margin-left: 16rpx;
+	}
+
+	// .shoppingCart .footer checkbox .wx-checkbox-input{background-color:#fafafa;}
+	.shoppingCart .footer .money {
+		font-size: 30rpx;
+	}
+
+	.shoppingCart .footer .placeOrder {
+		color: #fff;
+		font-size: 30rpx;
+		width: 226rpx;
+		height: 70rpx;
+		border-radius: 50rpx;
+		text-align: center;
+		line-height: 70rpx;
+		margin-left: 22rpx;
+	}
+
+	.shoppingCart .footer .button .bnt {
+		font-size: 28rpx;
+		color: #999;
+		border-radius: 50rpx;
+		border: 1px solid #999;
+		width: 160rpx;
+		height: 60rpx;
+		text-align: center;
+		line-height: 60rpx;
+	}
+
+	.shoppingCart .footer .button form~form {
+		margin-left: 17rpx;
+	}
+
+	.uni-p-b-96 {
+		height: 96rpx;
+	}
+
+	.uni-p-b-98 {
+		height: 100rpx;
+		/* 兼容 IOS<11.2 */
+		height: calc(100rpx + constant(safe-area-inset-bottom));
+		/* 兼容 IOS>11.2 */
+		height: calc(100rpx + env(safe-area-inset-bottom));
+	}
+
+	.emptyBox {
+		text-align: center;
+		padding: 80rpx 0;
+
+		.tips {
+			color: #aaa;
+			font-size: 26rpx;
+		}
+
+		image {
+			width: 414rpx;
+			height: 304rpx;
+		}
+	}
+</style>
